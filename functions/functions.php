@@ -1,23 +1,24 @@
 <?php
 
-// generate a random number to be used as relationship between image and its
-// corresponding post
-$randomNumber = rand();
+// require databases
+require_once("../includes/config.php");
+require_once("../includes/image_db.php");
 
-// todo:initialize blog post details
+
+// initialize blog post details
 
 
 // this function inserts blog post data into database
-function insertData(){
+function insertData($filename, $fileTempName, $postTitle, $postDesc, $postCont, $randomNumber){
+    global $db;
     // call image inserter because they have different databases
-    $result = imageInserter();
+    $result = imageInserter($filename, $fileTempName, $randomNumber);
 
     // check the return value from image inserter
     // if true, continue to insert other details into database
     // else, end function with a false code
     if($result){
         // insert blog details into database
-        require_once("../includes/config.php");
 
         //if form has been submitted process it
         if(isset($_POST['submit'])){
@@ -45,12 +46,13 @@ function insertData(){
                 try {
 
                     //insert into database
-                    $stmt = $db->prepare('INSERT INTO blog_posts (postTitle,postDesc,postCont,postDate) VALUES (:postTitle, :postDesc, :postCont, :postDate)') ;
+                    $stmt = $db->prepare('INSERT INTO blog_posts (postTitle,postDesc,postCont,postDate, link_id) VALUES (:postTitle, :postDesc, :postCont, :postDate, :randomNumber)') ;
                     $stmt->execute(array(
                         ':postTitle' => $postTitle,
                         ':postDesc' => $postDesc,
                         ':postCont' => $postCont,
-                        ':postDate' => date('Y-m-d H:i:s')
+                        ':postDate' => date('Y-m-d H:i:s'),
+                        ':randomNumber' => $randomNumber
                     ));
 
                     //redirect to index page
@@ -73,18 +75,22 @@ function insertData(){
         }
     }else{
         // return false
+        echo "Not inserted";
+        return false;
     }
 
+    return true;
 }
 
-function imageInserter(){
-    require("../includes/image_db.php");
+function imageInserter($filename, $fileTempName, $randomNumber){
+    global $conn;
+//    require("../includes/image_db.php");
     $statusMsg = "";
 
-    if (isset($_POST["submit"]) && !empty($_FILES["file"]["name"])){
+    if (!empty($filename)){
         // file upload path
         $targetDir = "../uploads/";
-        $fileName = basename($_FILES["file"]["name"]);
+        $fileName = basename($filename);
         $targetFilePath = $targetDir.$fileName;
         $fileType = pathinfo($targetFilePath, PATHINFO_EXTENSION);
 
@@ -92,29 +98,33 @@ function imageInserter(){
         $allowTypes = array('jpg','png','jpeg');
         if (in_array($fileType, $allowTypes)){
             // upload file to server
-            if (move_uploaded_file($_FILES['file']['tmp_name'], $targetFilePath)){
+            if (move_uploaded_file($fileTempName, $targetFilePath)){
                 // insert filename into database
-                $query = "INSERT INTO images(file_name, uploaded_on) VALUES ('".$fileName."', NOW())";
-                $insert = $db->query($query);
+                $query = "INSERT INTO images(file_name, uploaded_on, link_id) VALUES ('".$fileName."', NOW(), '$randomNumber')";
+                $insert = $conn->query($query);
 
                 if ($insert){
 //                    $statusMsg = "File uploaded successfully.";
-                    return false;
+                    return true;
                 }else{
+                    echo "Failed 1";
 //                    $statusMsg = "File upload failed. Please try again";
                     return false;
                 }
             }else{
 //                $statusMsg = "Sorry. There was an error in uploading your file.";
+                echo "Failed 2";
                 return false;
             }
 
         }else{
 //            $statusMsg = "Sorry. Only jpg, png or jpeg files are allowed.";
+            echo "Failed 3";
             return false;
         }
     }else{
 //        $statusMsg = "Please select an image to upload.";
+        echo "Failed 4";
         return false;
     }
 
